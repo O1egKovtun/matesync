@@ -8,89 +8,73 @@ const notion = new Client({
 const NOTION_DATABASE_ID = '3270f1b6639d80aea927eb207c665e4c';
 
 export async function POST(request: Request) {
+  let body;
   try {
-    const body = await request.json();
-    const { name, messenger_type, messenger_contact, services, brief } = body;
+    body = await request.json();
+  } catch (e) {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
 
-    if (!name || !messenger_type || !messenger_contact) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-    }
+  const { name, messenger_type, messenger_contact, services, brief } = body;
 
-    // 1. Save to SQLite
+  if (!name || !messenger_type || !messenger_contact) {
+    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  }
+
+  // 1. SQLite (ігноруємо помилки, якщо на Vercel файл тільки для читання)
+  let lastId = 0;
+  try {
+    const servicesArray = Array.isArray(services) ? services : [];
+    const servicesJson = JSON.stringify(servicesArray);
     const stmt = db.prepare(`
       INSERT INTO contacts (name, messenger_type, messenger_contact, services, brief)
       VALUES (?, ?, ?, ?, ?)
     `);
-
-    const servicesArray = Array.isArray(services) ? services : [];
-    const servicesJson = JSON.stringify(servicesArray);
     const info = stmt.run(name, messenger_type, messenger_contact, servicesJson, brief || '');
+    lastId = info.lastInsertRowid as number;
+  } catch (dbError) {
+    console.error('DB Error:', dbError);
+  }
 
-    // 2. Push to Notion Database
-    try {
-      const servicesText = servicesArray.join(', ');
-      await notion.pages.create({
-        parent: { database_id: NOTION_DATABASE_ID },
-        properties: {
-          Name: { title: [{ text: { content: name } }] },
-          Messenger: { rich_text: [{ text: { content: messenger_type } }] },
-          Contact: { rich_text: [{ text: { content: messenger_contact } }] },
-          Services: { rich_text: servicesText ? [{ text: { content: servicesText } }] : [] },
-          Brief: { rich_text: brief ? [{ text: { content: brief } }] : [] },
-          Date: { rich_text: [{ text: { content: new Date().toISOString() } }] },
-        },
-      });
-      console.log('Successfully pushed to Notion');
-    } catch (notionError) {
-      console.error('Notion integration error:', notionError);
-    }
+  // 2. Notion & 3. Google Sheets (запускаємо паралельно, щоб було швидше)
+  const servicesArray = Array.isArray(services) ? services : [];
+  const servicesText = servicesArray.join(', ');
 
-    // 3. Push to Google Sheets Webhook
-    try {
-      await fetch('https://script.google.com/macros/s/AKfycbzwQcXm60DtuBl5rWYmzxrin-KtOisIVmeJXtvUV5kWGuojSAiX14Hm6wzFnlDB0MtN/exec', {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ name, messenger_type, messenger_contact, services, brief }),
-        redirect: 'follow',
-      });
-      console.log('Successfully pushed to Google Sheets');
-    } catch (sheetsError) {
-      console.error('Google Sheets integration error:', sheetsError);
-    }
-
-    // --- 4. TELEGRAM NOTIFICATION (НОВИЙ БЛОК) ---
-    try {
+  await Promise.allSettled([
+    // Notion
+    notion.pages.create({
+      parent: { database_id: NOTION_DATABASE_ID },
+      properties: {
+        Name: { title: [{ text: { content: name } }] },
+        Messenger: { rich_text: [{ text: { content: messenger_type } }] },
+        Contact: { rich_text: [{ text: { content: messenger_contact } }] },
+        Services: { rich_text: [{ text: { content: servicesText || 'None' } }] },
+        Brief: { rich_text: [{ text: { content: brief || '' } }] },
+        Date: { rich_text: [{ text: { content: new Date().toISOString() } }] },
+      },
+    }),
+    // Google Sheets
+    fetch('https://script.google.com/macros/s/AKfycbzwQcXm60DtuBl5rWYmzxrin-KtOisIVmeJXtvUV5kWGuojSAiX14Hm6wzFnlDB0MtN/exec', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ name, messenger_type, messenger_contact, services, brief }),
+      redirect: 'follow',
+    }),
+    // Telegram (новий блок, повністю незалежний)
+    (async () => {
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
       const chatId = process.env.TELEGRAM_CHAT_ID;
+      if (!botToken || !chatId) return;
 
-      if (botToken && chatId) {
-        const servicesText = servicesArray.length > 0 ? servicesArray.join(', ') : 'Не обрано';
-        const message = 
-          `🚀 *Нова заявка mate.sync!*\n\n` +
-          `👤 *Ім'я:* ${name}\n` +
-          `💬 *${messenger_type}:* ${messenger_contact}\n` +
-          `🛠 *Послуги:* ${servicesText}\n` +
-          `📝 *Бриф:* ${brief || 'Порожньо'}`;
+      const msg = `🚀 *Нова заявка mate.sync!*\n\n👤 *Ім'я:* ${name}\n💬 *${messenger_type}:* ${messenger_contact}\n🛠 *Послуги:* ${servicesText || 'Не обрано'}`;
+      
+      return fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: 'Markdown' }),
+      });
+    })()
+  ]);
 
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: message,
-            parse_mode: 'Markdown',
-          }),
-        });
-        console.log('Successfully sent to Telegram');
-      }
-    } catch (tgError) {
-      console.error('Telegram notification error:', tgError);
-    }
-    // ----------------------------------------------
-
-    return NextResponse.json({ success: true, id: info.lastInsertRowid }, { status: 201 });
-  } catch (error) {
-    console.error('Contact submit error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+  return NextResponse.json({ success: true, id: lastId }, { status: 201 });
 }
