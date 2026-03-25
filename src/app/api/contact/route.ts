@@ -24,67 +24,24 @@ export async function POST(request: Request) {
 
     const servicesArray = Array.isArray(services) ? services : [];
     const servicesJson = JSON.stringify(servicesArray);
-
     const info = stmt.run(name, messenger_type, messenger_contact, servicesJson, brief || '');
 
     // 2. Push to Notion Database
     try {
       const servicesText = servicesArray.join(', ');
-
       await notion.pages.create({
         parent: { database_id: NOTION_DATABASE_ID },
         properties: {
-          Name: {
-            title: [
-              {
-                text: { content: name },
-              },
-            ],
-          },
-          Messenger: {
-            rich_text: [
-              {
-                text: { content: messenger_type },
-              },
-            ],
-          },
-          Contact: {
-            rich_text: [
-              {
-                text: { content: messenger_contact },
-              },
-            ],
-          },
-          Services: {
-            rich_text: servicesText
-              ? [
-                  {
-                    text: { content: servicesText },
-                  },
-                ]
-              : [],
-          },
-          Brief: {
-            rich_text: brief
-              ? [
-                  {
-                    text: { content: brief },
-                  },
-                ]
-              : [],
-          },
-          Date: {
-            rich_text: [
-              {
-                text: { content: new Date().toISOString() },
-              },
-            ],
-          },
+          Name: { title: [{ text: { content: name } }] },
+          Messenger: { rich_text: [{ text: { content: messenger_type } }] },
+          Contact: { rich_text: [{ text: { content: messenger_contact } }] },
+          Services: { rich_text: servicesText ? [{ text: { content: servicesText } }] : [] },
+          Brief: { rich_text: brief ? [{ text: { content: brief } }] : [] },
+          Date: { rich_text: [{ text: { content: new Date().toISOString() } }] },
         },
       });
       console.log('Successfully pushed to Notion');
     } catch (notionError) {
-      // Handle Notion errors gracefully without failing the request
       console.error('Notion integration error:', notionError);
     }
 
@@ -92,22 +49,44 @@ export async function POST(request: Request) {
     try {
       await fetch('https://script.google.com/macros/s/AKfycbzwQcXm60DtuBl5rWYmzxrin-KtOisIVmeJXtvUV5kWGuojSAiX14Hm6wzFnlDB0MtN/exec', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8',
-        },
-        body: JSON.stringify({
-          name,
-          messenger_type,
-          messenger_contact,
-          services,
-          brief
-        }),
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ name, messenger_type, messenger_contact, services, brief }),
         redirect: 'follow',
       });
       console.log('Successfully pushed to Google Sheets');
     } catch (sheetsError) {
       console.error('Google Sheets integration error:', sheetsError);
     }
+
+    // --- 4. TELEGRAM NOTIFICATION (НОВИЙ БЛОК) ---
+    try {
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      const chatId = process.env.TELEGRAM_CHAT_ID;
+
+      if (botToken && chatId) {
+        const servicesText = servicesArray.length > 0 ? servicesArray.join(', ') : 'Не обрано';
+        const message = 
+          `🚀 *Нова заявка mate.sync!*\n\n` +
+          `👤 *Ім'я:* ${name}\n` +
+          `💬 *${messenger_type}:* ${messenger_contact}\n` +
+          `🛠 *Послуги:* ${servicesText}\n` +
+          `📝 *Бриф:* ${brief || 'Порожньо'}`;
+
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: message,
+            parse_mode: 'Markdown',
+          }),
+        });
+        console.log('Successfully sent to Telegram');
+      }
+    } catch (tgError) {
+      console.error('Telegram notification error:', tgError);
+    }
+    // ----------------------------------------------
 
     return NextResponse.json({ success: true, id: info.lastInsertRowid }, { status: 201 });
   } catch (error) {
