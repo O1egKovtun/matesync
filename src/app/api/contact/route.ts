@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
-  // 1. SQLite (ігноруємо помилки, якщо на Vercel файл тільки для читання)
+  // 1. SQLite (ігноруємо помилки для Vercel)
   let lastId = 0;
   try {
     const servicesArray = Array.isArray(services) ? services : [];
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     console.error('DB Error:', dbError);
   }
 
-  // 2. Notion & 3. Google Sheets (запускаємо паралельно, щоб було швидше)
+  // 2. Notion & 3. Google Sheets & 4. Telegram
   const servicesArray = Array.isArray(services) ? services : [];
   const servicesText = servicesArray.join(', ');
 
@@ -60,19 +60,36 @@ export async function POST(request: Request) {
       body: JSON.stringify({ name, messenger_type, messenger_contact, services, brief }),
       redirect: 'follow',
     }),
-    // Telegram (новий блок, повністю незалежний)
+    // Telegram (Фінальна стабільна версія)
     (async () => {
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
       const chatId = process.env.TELEGRAM_CHAT_ID;
-      if (!botToken || !chatId) return;
-
-      const msg = `🚀 *Нова заявка mate.sync!*\n\n👤 *Ім'я:* ${name}\n💬 *${messenger_type}:* ${messenger_contact}\n🛠 *Послуги:* ${servicesText || 'Не обрано'}`;
       
-      return fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: 'Markdown' }),
-      });
+      if (!botToken || !chatId) {
+        console.error('Telegram Error: Token or ChatID missing in Vercel settings');
+        return;
+      }
+
+      const msg = `🚀 Нова заявка mate.sync!\n\n👤 Ім'я: ${name}\n💬 ${messenger_type}: ${messenger_contact}\n🛠 Послуги: ${servicesText || 'Не обрано'}\n📝 Бриф: ${brief || 'порожньо'}`;
+      
+      try {
+        const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            chat_id: chatId, 
+            text: msg 
+          }),
+        });
+        const data = await response.json();
+        if (data.ok) {
+          console.log('Telegram: Message sent successfully');
+        } else {
+          console.error('Telegram API Error:', data);
+        }
+      } catch (err) {
+        console.error('Telegram Fetch Error:', err);
+      }
     })()
   ]);
 
