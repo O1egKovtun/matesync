@@ -6,7 +6,6 @@ import SectionEyebrow from "./SectionEyebrow";
 const services = [
   { title: "AI Web Development", description: "Next-gen platforms with embedded AI agents." },
   { title: "Custom Models", description: "Proprietary LLMs trained on company datasets." },
-  { title: "AI Creatives", description: "Hyper-personalized marketing assets." },
   { title: "Automation Workflows", description: "Zero-touch processes with intelligent routing." },
   { title: "Data Analysis", description: "Predictive analytics uncovering opportunities." },
   { title: "AI Team Training", description: "Upskilling workforce to maximize AI tooling." },
