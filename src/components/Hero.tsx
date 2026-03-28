@@ -94,7 +94,6 @@ export default function Hero() {
   const stats = [
     { num: 14, suffix: "d", label: "MVP Delivery" },
     { num: 15, suffix: "+", label: "AI Processes" },
-    { num: 40, suffix: "h", label: "Saved Weekly" },
     { num: 90, suffix: "%", label: "Automation" },
   ];
 

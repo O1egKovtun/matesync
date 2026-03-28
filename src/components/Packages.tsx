@@ -1,124 +1,176 @@
 "use client";
+import { useState, useMemo } from "react";
 import AnimatedButton from "./AnimatedButton";
 import { m } from "framer-motion";
 import SectionEyebrow from "./SectionEyebrow";
-import { Check } from "lucide-react";
 
-const packages = [
-  { 
-    name: "ESSENTIAL", 
-    features: ["AI Landing Page", "Creative Suite", "Basic SEO optimization", "Standard support"], 
-    highlighted: false 
-  },
-  { 
-    name: "PRO", 
-    features: ["AI Web Development", "Automation Workflows", "Dataset Integration", "Priority Support"], 
-    highlighted: true 
-  },
-  { 
-    name: "ENTERPRISE", 
-    features: ["Custom Models", "Data Analysis & Insights", "Team AI Training", "Dedicated AI Architect"], 
-    highlighted: false 
-  },
-];
-
-interface PackageItem {
-  name: string;
-  features: string[];
-  highlighted: boolean;
-}
-
-interface PackageCardProps {
-  pkg: PackageItem;
-  index: number;
-}
-
-function PackageCard({ pkg, index }: PackageCardProps) {
+function SliderInput({
+  label,
+  value,
+  min,
+  max,
+  step,
+  unit,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+  onChange: (v: number) => void;
+}) {
   return (
-    <m.div
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.5, delay: index * 0.1 }}
-      className={`relative flex flex-col rounded-2xl p-8 md:p-10 transition-all duration-300 hover:-translate-y-1.5 ${
-        pkg.highlighted
-          ? "bg-white/[0.06] border border-primary/40 shadow-[0_0_30px_rgba(0,93,255,0.15),0_0_60px_rgba(0,93,255,0.05)]"
-          : "bg-white/[0.03] border border-white/[0.08] hover:border-white/[0.15]"
-      }`}
-    >
-      <div className="mb-8 pt-2">
-        <h3 className={`text-h2 font-bold tracking-tight flex items-center gap-3 ${
-          pkg.highlighted ? "text-white" : "text-t-primary"
-        }`}>
-          <span>{pkg.name}</span>
-          {pkg.highlighted && (
-            <span className="text-[10px] font-bold tracking-widest bg-primary text-white px-2 py-0.5 rounded-full uppercase shadow-[0_0_10px_rgba(0,102,255,0.3)]">
-              Most Popular
-            </span>
-          )}
-        </h3>
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <label className="text-[13px] text-t-body font-medium tracking-wide uppercase">
+          {label}
+        </label>
+        <span className="text-[15px] font-bold text-white tabular-nums">
+          {unit === "$" ? `$${value}` : value}
+        </span>
       </div>
-
-      <div className="flex-1">
-        <ul className="flex flex-col gap-1 mb-10">
-          {pkg.features.map((feature, j) => (
-            <li
-              key={j}
-              className="flex items-center gap-3 py-3"
-            >
-              <span className={`flex items-center justify-center w-5 h-5 rounded-full shrink-0 ${
-                pkg.highlighted
-                  ? "bg-primary/20 text-primary"
-                  : "bg-white/[0.06] text-white/50"
-              }`}>
-                <Check size={12} strokeWidth={2.5} />
-              </span>
-              <span className="text-[14px] text-t-body leading-tight">
-                {feature}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <AnimatedButton
-        href="#contact"
-        variant={pkg.highlighted ? "primary" : "ghost"}
-        className="w-full"
-      >
-        SELECT TIER
-      </AnimatedButton>
-    </m.div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="calculator-slider w-full"
+      />
+    </div>
   );
 }
 
 export default function Packages() {
+  const [employees, setEmployees] = useState(10);
+  const [wage, setWage] = useState(35);
+  const [hours, setHours] = useState(20);
+
+  const results = useMemo(() => {
+    const annualCost = employees * wage * hours * 52;
+    const timeWasted = employees * hours * 52;
+    const savings = Math.round(annualCost * 0.7);
+    return { annualCost, timeWasted, savings };
+  }, [employees, wage, hours]);
+
   return (
     <section id="packages" className="relative py-section bg-background overflow-hidden">
       <div className="max-w-[1200px] mx-auto px-6 sm:px-12">
-        <m.div 
+        {/* Section Header */}
+        <m.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
           className="mb-8 md:mb-12"
         >
-          <SectionEyebrow>Pricing</SectionEyebrow>
-          <h2 className="text-h2 md:text-h1 mb-6 text-t-primary text-left">Engagement Tiers</h2>
-          <p className="text-body md:text-body-lg text-t-body max-w-2xl leading-relaxed text-left">
-            Select the integration framework that aligns with your operational velocity.
+          <SectionEyebrow>Calculator</SectionEyebrow>
+          <h2 className="text-h2 md:text-h1 mb-4 font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-[#38BDF8] via-[#A855F7] to-[#EC4899]">
+            YOUR MANUAL EFFORT LEAKAGE
+          </h2>
+          <p className="text-body md:text-body-lg text-t-body max-w-2xl leading-relaxed">
+            Calculate how much manual workflows are costing your business.{" "}
+            <span className="text-white font-semibold">FIX THE DRAIN.</span>
           </p>
         </m.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {packages.map((pkg, i) => (
-            <PackageCard 
-              key={i} 
-              pkg={pkg} 
-              index={i} 
-            />
-          ))}
-        </div>
+        {/* Glass Card */}
+        <m.div
+          initial={{ opacity: 0, y: 32 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.7, delay: 0.1 }}
+          className="rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 md:p-12"
+        >
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16">
+            {/* Column 1: Inputs */}
+            <div className="flex flex-col gap-10">
+              <h3 className="text-label uppercase tracking-widest text-t-caption mb-2">
+                Your Current Setup
+              </h3>
+              <SliderInput
+                label="Number of Manual Employees"
+                value={employees}
+                min={1}
+                max={100}
+                step={1}
+                unit=""
+                onChange={setEmployees}
+              />
+              <SliderInput
+                label="Average Hourly Wage"
+                value={wage}
+                min={10}
+                max={150}
+                step={5}
+                unit="$"
+                onChange={setWage}
+              />
+              <SliderInput
+                label="Manual Hours / Week"
+                value={hours}
+                min={1}
+                max={60}
+                step={1}
+                unit=""
+                onChange={setHours}
+              />
+            </div>
+
+            {/* Column 2: Results */}
+            <div className="flex flex-col justify-between gap-8 lg:pl-8 lg:border-l lg:border-white/[0.06]">
+              <h3 className="text-label uppercase tracking-widest text-t-caption">
+                Your Total Leakage
+              </h3>
+
+              <div className="flex flex-col gap-8">
+                {/* Annual Manual Cost */}
+                <div>
+                  <p className="text-[11px] uppercase tracking-widest text-t-caption mb-2 font-semibold">
+                    Annual Manual Cost
+                  </p>
+                  <p className="text-h2 md:text-h1 font-bold text-[#A855F7] tabular-nums leading-none drop-shadow-[0_0_24px_rgba(168,85,247,0.35)]">
+                    ${results.annualCost.toLocaleString()}
+                  </p>
+                </div>
+
+                {/* Time Wasted / Year */}
+                <div>
+                  <p className="text-[11px] uppercase tracking-widest text-t-caption mb-2 font-semibold">
+                    Time Wasted / Year
+                  </p>
+                  <p className="text-h2 md:text-h1 font-bold text-[#38BDF8] tabular-nums leading-none drop-shadow-[0_0_24px_rgba(56,189,248,0.35)]">
+                    {results.timeWasted.toLocaleString()}h
+                  </p>
+                </div>
+
+                {/* Potential Savings */}
+                <div>
+                  <p className="text-[11px] uppercase tracking-widest text-t-caption mb-2 font-semibold">
+                    Fix via Mate Sync (Potential Savings)
+                  </p>
+                  <p className="text-h2 md:text-h1 font-bold text-[#4ADE80] tabular-nums leading-none drop-shadow-[0_0_24px_rgba(74,222,128,0.35)]">
+                    ${results.savings.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              {/* CTA */}
+              <div className="relative mt-4 w-fit">
+                <div
+                  className="absolute inset-[-5px] rounded-[14px] border border-[#005DFF]/40 pointer-events-none"
+                  style={{ animation: "ringPulse 2s ease-out infinite" }}
+                />
+                <AnimatedButton href="#contact" large className="gap-3">
+                  FIX MY WORKFLOWS
+                </AnimatedButton>
+              </div>
+            </div>
+          </div>
+        </m.div>
       </div>
     </section>
   );
